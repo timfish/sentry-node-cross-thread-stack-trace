@@ -1,0 +1,14 @@
+{
+  "name": "cross-thread-stack-trace",
+  "version": "0.1.0",
+  "main": "index.js",
+  "types": "index.d.ts",
+  "license": "MIT",
+  "scripts": {
+    "install": "node-gyp configure && node-gyp build",
+    "test": "node test.js"
+  },
+  "volta": {
+    "node": "22.15.1"
+  }
+}
