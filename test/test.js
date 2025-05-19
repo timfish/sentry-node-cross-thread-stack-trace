@@ -1,11 +1,16 @@
 const { Worker } = require('node:worker_threads');
 const crypto = require('node:crypto');
 
-const { setMainIsolate } = require('.');
+const { registerThread } = require('../index.js');
 
-setMainIsolate();
+registerThread(true);
 
-const worker = new Worker('./worker.js');
+const watchdog = new Worker('./test/watchdog.js');
+watchdog.on('exit', (code) => console.log(`watchdog stopped with exit code ${code}`));
+watchdog.on('error', (error) => console.error('watchdog error:', error));
+
+
+const worker = new Worker('./test/worker.js');
 worker.on('exit', (code) => console.log(`Worker stopped with exit code ${code}`));
 worker.on('error', (error) => console.error('Worker error:', error));
 

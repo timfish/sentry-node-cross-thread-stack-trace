@@ -6,7 +6,7 @@
   "license": "MIT",
   "scripts": {
     "install": "node-gyp configure && node-gyp build",
-    "test": "node test.js"
+    "test": "node test/test.js"
   },
   "volta": {
     "node": "22.15.1"

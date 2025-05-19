@@ -1,49 +1,37 @@
 #include <node.h>
 #include <mutex>
+#include <map>
+#include <sstream>
+#include <future>
 
 using namespace v8;
 using namespace node;
 
-static v8::Isolate *main_thread_isolate;
-
-static std::mutex interrupt_mutex;
-static std::condition_variable interrupt_cv;
-static bool interrupt_done = false;
-
 static const int kMaxStackFrames = 255;
-static const int kMaxStackJsonSize = 10240;
+
+static std::unordered_map<v8::Isolate *, int> threads = {};
 
 static void ExecutionInterrupted(Isolate *isolate, void *data)
 {
-    char *buffer = static_cast<char *>(data);
+    auto promise = static_cast<std::promise<std::string> *>(data);
 
-    v8::RegisterState state;
-    v8::SampleInfo info;
-    void *samples[kMaxStackFrames];
+    Local<StackTrace> stack = StackTrace::CurrentStackTrace(isolate, kMaxStackFrames, StackTrace::kDetailed);
 
-    uint32_t pos = 0;
-
-    // Initialise the register state
-    state.pc = nullptr;
-    state.fp = &state;
-    state.sp = &state;
-
-    isolate->GetStackSample(state, samples, kMaxStackFrames, &info);
-
-    Local<StackTrace> stack = StackTrace::CurrentStackTrace(isolate, 255, StackTrace::kDetailed);
     if (stack.IsEmpty())
     {
-        snprintf(buffer, kMaxStackJsonSize, "[]");
+        promise->set_value("[]");
         return;
     }
 
-    pos += snprintf(&buffer[pos], kMaxStackJsonSize, "[");
-    int count = stack->GetFrameCount();
+    std::ostringstream out;
 
-    for (int i = 0; i < count; i++)
+    out << "[";
+    auto count = stack->GetFrameCount();
+
+    for (auto i = 0; i < count; i++)
     {
-        Local<StackFrame> frame = stack->GetFrame(isolate, i);
-        Local<String> fn_name = frame->GetFunctionName();
+        auto frame = stack->GetFrame(isolate, i);
+        auto fn_name = frame->GetFunctionName();
 
         if (frame->IsEval())
         {
@@ -60,58 +48,97 @@ static void ExecutionInterrupted(Isolate *isolate, void *data)
 
         String::Utf8Value function_name(isolate, fn_name);
         String::Utf8Value script_name(isolate, frame->GetScriptName());
-        const int line_number = frame->GetLineNumber();
-        const int column = frame->GetColumn();
+        auto line_number = frame->GetLineNumber();
+        auto column = frame->GetColumn();
 
-        pos += snprintf(&buffer[pos], kMaxStackJsonSize,
-                        "{\"function\":\"%s\",\"filename\":\"%s\",\"lineno\":%d,\"colno\":%d}",
-                        *function_name,
-                        *script_name,
-                        line_number,
-                        column);
+        out << "{\"function\":\"" << *function_name
+            << "\",\"filename\":\"" << *script_name
+            << "\",\"lineno\":" << line_number
+            << ",\"colno\":" << column << "}";
 
         if (i < count - 1)
         {
-            pos += snprintf(&buffer[pos], kMaxStackJsonSize, ",");
+            out << ",";
         }
     }
 
-    pos += snprintf(&buffer[pos], kMaxStackJsonSize, "]");
+    out << "]";
 
-    {
-        std::lock_guard<std::mutex> lock(interrupt_mutex);
-        interrupt_done = true;
-    }
-    interrupt_cv.notify_one();
+    promise->set_value(out.str());
 }
 
-void CaptureStackTrace(const FunctionCallbackInfo<Value> &args)
+std::string CaptureStackTrace(Isolate *isolate)
 {
-    char buffer[kMaxStackJsonSize] = {0};
+    std::promise<std::string> promise;
+    auto future = promise.get_future();
 
-    if (auto isolate = main_thread_isolate)
+    isolate->RequestInterrupt(ExecutionInterrupted, &promise);
+    return future.get();
+}
+
+void CaptureStackTraces(const FunctionCallbackInfo<Value> &args)
+{
+    bool exclude_workers = args.Length() == 1 && args[0]->IsBoolean() && args[0].As<Boolean>()->Value();
+    auto capture_from_isolate = args.GetIsolate();
+
+    std::vector<std::future<std::string>> futures;
+
+    for (auto &thread : threads)
     {
-        // Reset the interrupt_done flag
+        auto thread_isolate = thread.first;
+        if (thread_isolate != capture_from_isolate)
         {
-            std::lock_guard<std::mutex> lock(interrupt_mutex);
-            interrupt_done = false;
+            int thread_id = thread.second;
+
+            if (exclude_workers && thread_id != -1)
+            {
+                continue;
+            }
+
+            auto thread_name = thread_id == -1 ? "main" : "worker-" + std::to_string(thread_id);
+
+            futures.emplace_back(std::async(std::launch::async, [thread_name](Isolate *isolate)
+                                            { return "\"" + thread_name + "\":" + CaptureStackTrace(isolate); }, thread_isolate));
         }
-
-        isolate->RequestInterrupt(ExecutionInterrupted, buffer);
-
-        // Wait for the interrupt to complete
-        std::unique_lock<std::mutex> lock(interrupt_mutex);
-        interrupt_cv.wait(lock, []
-                          { return interrupt_done; });
     }
 
-    Local<String> result = String::NewFromUtf8(args.GetIsolate(), buffer, NewStringType::kNormal).ToLocalChecked();
-    args.GetReturnValue().Set(result);
+    std::ostringstream out;
+
+    auto count = futures.size();
+    out << "{";
+    for (auto &future : futures)
+    {
+        out << future.get();
+        if (--count > 0)
+        {
+            out << ",";
+        }
+    }
+    out << "}";
+
+    args.GetReturnValue().Set(String::NewFromUtf8(capture_from_isolate, out.str().c_str(), NewStringType::kNormal).ToLocalChecked());
 }
 
-void SetMainIsolate(const FunctionCallbackInfo<Value> &args)
+void Cleanup(void *arg)
 {
-    main_thread_isolate = args.GetIsolate();
+    auto isolate = static_cast<Isolate *>(arg);
+    threads.erase(isolate);
+}
+
+void RegisterThread(const FunctionCallbackInfo<Value> &args)
+{
+    auto isolate = args.GetIsolate();
+
+    if (args.Length() != 1 || !args[0]->IsNumber())
+    {
+        isolate->ThrowException(Exception::Error(String::NewFromUtf8(isolate, "registerThread() requires a single threadId argument", NewStringType::kInternalized).ToLocalChecked()));
+        return;
+    }
+
+    int thread_id = args[0].As<Number>()->Value();
+
+    threads.emplace(isolate, thread_id);
+    node::AddEnvironmentCleanupHook(isolate, Cleanup, isolate);
 }
 
 extern "C" NODE_MODULE_EXPORT void
@@ -119,15 +146,15 @@ NODE_MODULE_INITIALIZER(Local<Object> exports,
                         Local<Value> module,
                         Local<Context> context)
 {
-    Isolate *isolate = context->GetIsolate();
+    auto isolate = context->GetIsolate();
 
     exports->Set(context,
                  String::NewFromUtf8(isolate, "captureStackTrace", NewStringType::kInternalized).ToLocalChecked(),
-                 FunctionTemplate::New(isolate, CaptureStackTrace)->GetFunction(context).ToLocalChecked())
+                 FunctionTemplate::New(isolate, CaptureStackTraces)->GetFunction(context).ToLocalChecked())
         .Check();
 
     exports->Set(context,
-                 String::NewFromUtf8(isolate, "setMainIsolate", NewStringType::kInternalized).ToLocalChecked(),
-                 FunctionTemplate::New(isolate, SetMainIsolate)->GetFunction(context).ToLocalChecked())
+                 String::NewFromUtf8(isolate, "registerThread", NewStringType::kInternalized).ToLocalChecked(),
+                 FunctionTemplate::New(isolate, RegisterThread)->GetFunction(context).ToLocalChecked())
         .Check();
 }
