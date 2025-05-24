@@ -9,6 +9,7 @@ using namespace node;
 
 static const int kMaxStackFrames = 255;
 
+static std::mutex threads_mutex;
 static std::unordered_map<v8::Isolate *, int> threads = {};
 
 static void ExecutionInterrupted(Isolate *isolate, void *data)
@@ -78,23 +79,17 @@ std::string CaptureStackTrace(Isolate *isolate)
 
 void CaptureStackTraces(const FunctionCallbackInfo<Value> &args)
 {
-    bool exclude_workers = args.Length() == 1 && args[0]->IsBoolean() && args[0].As<Boolean>()->Value();
     auto capture_from_isolate = args.GetIsolate();
 
     std::vector<std::future<std::string>> futures;
 
+    std::lock_guard<std::mutex> lock(threads_mutex);
     for (auto &thread : threads)
     {
         auto thread_isolate = thread.first;
         if (thread_isolate != capture_from_isolate)
         {
             int thread_id = thread.second;
-
-            if (exclude_workers && thread_id != -1)
-            {
-                continue;
-            }
-
             auto thread_name = thread_id == -1 ? "main" : "worker-" + std::to_string(thread_id);
 
             futures.emplace_back(std::async(std::launch::async, [thread_name](Isolate *isolate)
@@ -122,6 +117,7 @@ void CaptureStackTraces(const FunctionCallbackInfo<Value> &args)
 void Cleanup(void *arg)
 {
     auto isolate = static_cast<Isolate *>(arg);
+    std::lock_guard<std::mutex> lock(threads_mutex);
     threads.erase(isolate);
 }
 
@@ -137,7 +133,10 @@ void RegisterThread(const FunctionCallbackInfo<Value> &args)
 
     int thread_id = args[0].As<Number>()->Value();
 
-    threads.emplace(isolate, thread_id);
+    {
+        std::lock_guard<std::mutex> lock(threads_mutex);
+        threads.emplace(isolate, thread_id);
+    }
     node::AddEnvironmentCleanupHook(isolate, Cleanup, isolate);
 }
 
