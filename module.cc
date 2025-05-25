@@ -1,7 +1,5 @@
 #include <node.h>
 #include <mutex>
-#include <map>
-#include <sstream>
 #include <future>
 
 using namespace v8;
@@ -14,22 +12,18 @@ static std::unordered_map<v8::Isolate *, int> threads = {};
 
 static void ExecutionInterrupted(Isolate *isolate, void *data)
 {
-    auto promise = static_cast<std::promise<std::string> *>(data);
-
-    Local<StackTrace> stack = StackTrace::CurrentStackTrace(isolate, kMaxStackFrames, StackTrace::kDetailed);
+    auto promise = static_cast<std::promise<Local<Array>> *>(data);
+    auto stack = StackTrace::CurrentStackTrace(isolate, kMaxStackFrames, StackTrace::kDetailed);
 
     if (stack.IsEmpty())
     {
-        promise->set_value("[]");
+        promise->set_value(Array::New(isolate, 0));
         return;
     }
 
-    std::ostringstream out;
+    auto frames = Array::New(isolate, stack->GetFrameCount());
 
-    out << "[";
-    auto count = stack->GetFrameCount();
-
-    for (auto i = 0; i < count; i++)
+    for (int i = 0; i < stack->GetFrameCount(); i++)
     {
         auto frame = stack->GetFrame(isolate, i);
         auto fn_name = frame->GetFunctionName();
@@ -47,30 +41,36 @@ static void ExecutionInterrupted(Isolate *isolate, void *data)
             fn_name = String::NewFromUtf8(isolate, "[constructor]", NewStringType::kInternalized).ToLocalChecked();
         }
 
-        String::Utf8Value function_name(isolate, fn_name);
-        String::Utf8Value script_name(isolate, frame->GetScriptName());
-        auto line_number = frame->GetLineNumber();
-        auto column = frame->GetColumn();
+        auto frame_obj = Object::New(isolate);
+        frame_obj->Set(isolate->GetCurrentContext(),
+                       String::NewFromUtf8(isolate, "function", NewStringType::kInternalized).ToLocalChecked(),
+                       fn_name)
+            .Check();
 
-        out << "{\"function\":\"" << *function_name
-            << "\",\"filename\":\"" << *script_name
-            << "\",\"lineno\":" << line_number
-            << ",\"colno\":" << column << "}";
+        frame_obj->Set(isolate->GetCurrentContext(),
+                       String::NewFromUtf8(isolate, "filename", NewStringType::kInternalized).ToLocalChecked(),
+                       frame->GetScriptName())
+            .Check();
 
-        if (i < count - 1)
-        {
-            out << ",";
-        }
+        frame_obj->Set(isolate->GetCurrentContext(),
+                       String::NewFromUtf8(isolate, "lineno", NewStringType::kInternalized).ToLocalChecked(),
+                       Integer::New(isolate, frame->GetLineNumber()))
+            .Check();
+
+        frame_obj->Set(isolate->GetCurrentContext(),
+                       String::NewFromUtf8(isolate, "colno", NewStringType::kInternalized).ToLocalChecked(),
+                       Integer::New(isolate, frame->GetColumn()))
+            .Check();
+
+        frames->Set(isolate->GetCurrentContext(), i, frame_obj).Check();
     }
 
-    out << "]";
-
-    promise->set_value(out.str());
+    promise->set_value(frames);
 }
 
-std::string CaptureStackTrace(Isolate *isolate)
+Local<Array> CaptureStackTrace(Isolate *isolate)
 {
-    std::promise<std::string> promise;
+    std::promise<Local<Array>> promise;
     auto future = promise.get_future();
 
     isolate->RequestInterrupt(ExecutionInterrupted, &promise);
@@ -81,37 +81,28 @@ void CaptureStackTraces(const FunctionCallbackInfo<Value> &args)
 {
     auto capture_from_isolate = args.GetIsolate();
 
-    std::vector<std::future<std::string>> futures;
+    using ThreadResult = std::tuple<std::string, Local<Array>>;
+    std::vector<std::future<ThreadResult>> futures;
 
     std::lock_guard<std::mutex> lock(threads_mutex);
-    for (auto &thread : threads)
+    for (auto [thread_isolate, thread_id] : threads)
     {
-        auto thread_isolate = thread.first;
-        if (thread_isolate != capture_from_isolate)
-        {
-            int thread_id = thread.second;
-            auto thread_name = thread_id == -1 ? "main" : "worker-" + std::to_string(thread_id);
-
-            futures.emplace_back(std::async(std::launch::async, [thread_name](Isolate *isolate)
-                                            { return "\"" + thread_name + "\":" + CaptureStackTrace(isolate); }, thread_isolate));
-        }
+        if (thread_isolate == capture_from_isolate)
+            continue;
+        auto thread_name = thread_id == -1 ? "main" : "worker-" + std::to_string(thread_id);
+        futures.emplace_back(std::async(std::launch::async, [thread_name](Isolate *isolate) -> ThreadResult
+                                        { return std::make_tuple(thread_name, CaptureStackTrace(isolate)); }, thread_isolate));
     }
 
-    std::ostringstream out;
-
-    auto count = futures.size();
-    out << "{";
+    Local<Object> result = Object::New(capture_from_isolate);
     for (auto &future : futures)
     {
-        out << future.get();
-        if (--count > 0)
-        {
-            out << ",";
-        }
+        auto [thread_name, frames] = future.get();
+        auto key = String::NewFromUtf8(capture_from_isolate, thread_name.c_str(), NewStringType::kNormal).ToLocalChecked();
+        result->Set(capture_from_isolate->GetCurrentContext(), key, frames).Check();
     }
-    out << "}";
 
-    args.GetReturnValue().Set(String::NewFromUtf8(capture_from_isolate, out.str().c_str(), NewStringType::kNormal).ToLocalChecked());
+    args.GetReturnValue().Set(result);
 }
 
 void Cleanup(void *arg)
@@ -131,7 +122,7 @@ void RegisterThread(const FunctionCallbackInfo<Value> &args)
         return;
     }
 
-    int thread_id = args[0].As<Number>()->Value();
+    auto thread_id = args[0].As<Number>()->Value();
 
     {
         std::lock_guard<std::mutex> lock(threads_mutex);
@@ -140,10 +131,9 @@ void RegisterThread(const FunctionCallbackInfo<Value> &args)
     node::AddEnvironmentCleanupHook(isolate, Cleanup, isolate);
 }
 
-extern "C" NODE_MODULE_EXPORT void
-NODE_MODULE_INITIALIZER(Local<Object> exports,
-                        Local<Value> module,
-                        Local<Context> context)
+extern "C" NODE_MODULE_EXPORT void NODE_MODULE_INITIALIZER(Local<Object> exports,
+                                                           Local<Value> module,
+                                                           Local<Context> context)
 {
     auto isolate = context->GetIsolate();
 
