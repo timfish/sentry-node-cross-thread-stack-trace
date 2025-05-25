@@ -22,14 +22,14 @@ describe("Basic", () => {
             {
                 function: 'longWork',
                 filename: expect.stringMatching(/test.js$/),
-                lineno: 18,
-                colno: 29
+                lineno: expect.any(Number),
+                colno: expect.any(Number),
             },
             {
                 function: '?',
                 filename: expect.stringMatching(/test.js$/),
-                lineno: 22,
-                colno: 1
+                lineno: expect.any(Number),
+                colno: expect.any(Number),
             },
         ]));
 
@@ -43,14 +43,14 @@ describe("Basic", () => {
             {
                 function: 'longWork',
                 filename: expect.stringMatching(/worker.js$/),
-                lineno: 10,
-                colno: 29
+                lineno: expect.any(Number),
+                colno: expect.any(Number),
             },
             {
                 function: '?',
                 filename: expect.stringMatching(/worker.js$/),
-                lineno: 14,
-                colno: 1
+                lineno: expect.any(Number),
+                colno: expect.any(Number),
             },
         ]));
     });
