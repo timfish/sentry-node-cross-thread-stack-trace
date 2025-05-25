@@ -1,6 +1,6 @@
 const crypto = require('node:crypto');
 
-const { registerThread } = require('../index.js');
+const { registerThread } = require('..');
 
 registerThread();
 

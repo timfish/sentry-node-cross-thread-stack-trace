@@ -1,10 +1,6 @@
 const { captureStackTrace } = require('..');
-const { inspect } = require('util');
 
 setTimeout(() => {
-    console.time('captureStackTrace');
-    const result = captureStackTrace();
-    console.timeEnd('captureStackTrace');
-    console.log(inspect(result, false, null, true));
+    console.log(JSON.stringify(captureStackTrace()));
 }, 2000);
 
