@@ -21,7 +21,7 @@
     "build:dev": "yarn clean && yarn build:bindings:configure && yarn build",
     "build:tarball": "npm pack",
     "clean": "node-gyp clean && rm -rf lib && rm -rf build",
-    "test": "vitest run ./test/*.test.mjs --silent=false --disable-console-intercept"
+    "test": "vitest run --silent=false --disable-console-intercept"
   },
   "volta": {
     "node": "24.1.0"
