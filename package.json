@@ -1,17 +1,52 @@
 {
-  "name": "cross-thread-stack-trace",
+  "name": "@sentry-internal/node-native-stacktrace",
   "version": "0.1.0",
-  "main": "index.js",
-  "types": "index.d.ts",
+  "main": "lib/index.js",
+  "types": "lib/index.d.ts",
   "license": "MIT",
   "scripts": {
-    "install": "node-gyp configure && node-gyp build",
-    "test": "vitest run ./test/*.test.js --silent=false --disable-console-intercept"
-  },
-  "devDependencies": {
-    "vitest": "^3.1.4"
+    "install": "node scripts/check-build.js",
+    "lint": "yarn lint:eslint && yarn lint:clang",
+    "lint:eslint": "eslint . --format stylish",
+    "lint:clang": "node scripts/clang-format.js",
+    "fix": "yarn fix:eslint && yarn fix:clang",
+    "fix:eslint": "eslint . --format stylish --fix",
+    "fix:clang": "node scripts/clang-format.js --fix",
+    "build": "yarn build:lib && yarn build:bindings:configure && yarn build:bindings",
+    "build:lib": "tsc",
+    "build:bindings:configure": "node-gyp configure",
+    "build:bindings:configure:arm64": "node-gyp configure --arch=arm64 --target_arch=arm64",
+    "build:bindings": "node-gyp build && node scripts/copy-target.js",
+    "build:bindings:arm64": "node-gyp build --arch=arm64 && node scripts/copy-target.js",
+    "build:dev": "yarn clean && yarn build:bindings:configure && yarn build",
+    "build:tarball": "npm pack",
+    "clean": "node-gyp clean && rm -rf lib && rm -rf build",
+    "test": "vitest run ./test/*.test.mjs --silent=false --disable-console-intercept"
   },
   "volta": {
-    "node": "22.15.1"
-  }
+    "node": "24.1.0"
+  },
+  "dependencies": {
+    "detect-libc": "^2.0.4",
+    "node-abi": "^4.9.0"
+  },
+  "devDependencies": {
+    "@sentry-internal/eslint-config-sdk": "^9.22.0",
+    "@types/node": "^18.19.1",
+    "@types/node-abi": "^3.0.3",
+    "clang-format": "^1.8.0",
+    "eslint": "^7.0.0",
+    "node-gyp": "^11.2.0",
+    "typescript": "^5.8.3",
+    "vitest": "^3.1.4"
+  },
+  "files": [
+    "lib/",
+    "/module.cc",
+    "/binding.gyp",
+    "package.json",
+    "/scripts/binaries.js",
+    "/scripts/check-build.js",
+    "/scripts/copy-target.js"
+  ]
 }

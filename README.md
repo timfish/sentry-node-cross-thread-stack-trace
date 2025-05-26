@@ -1,4 +1,4 @@
-# `cross-thread-stack-trace`
+# `@sentry-internal/node-native-stacktrace`
 
 Native Node module to capture stack traces from all registered threads.
 
@@ -8,7 +8,7 @@ thread, even if the event loops are blocked.
 In the main or worker threads:
 
 ```ts
-const { registerThread } = require("cross-thread-stack-trace");
+const { registerThread } = require("@sentry-internal/node-native-stacktrace");
 
 registerThread();
 ```
@@ -16,7 +16,7 @@ registerThread();
 Watchdog thread:
 
 ```ts
-const { captureStackTrace } = require("cross-thread-stack-trace");
+const { captureStackTrace } = require("@sentry-internal/node-native-stacktrace");
 
 const stacks = captureStackTrace();
 console.log(stacks);
@@ -87,28 +87,29 @@ In the main or worker threads if you call `registerThread()` regularly, times
 are recorded.
 
 ```ts
-const { registerThread } = require("cross-thread-stack-trace");
+const { registerThread } = require("@sentry-internal/node-native-stacktrace");
 
 setInterval(() => {
   registerThread();
 }, 200);
 ```
 
-In the watchdog thread you can call `getThreadLastSeen()` to get how long it's
+In the watchdog thread you can call `getThreadsLastSeen()` to get how long it's
 been in milliseconds since each thread registered.
 
 If any thread has exceeded a threshold, you can call `captureStackTrace()` to
 get the stack traces for all threads.
 
 ```ts
-const { captureStackTrace, getThreadLastSeen } = require(
-  "cross-thread-stack-trace",
-);
+const {
+  captureStackTrace,
+  getThreadsLastSeen,
+} = require("@sentry-internal/node-native-stacktrace");
 
 const THRESHOLD = 1000; // 1 second
 
 setInterval(() => {
-  for (const [thread, time] in Object.entries(getThreadLastSeen())) {
+  for (const [thread, time] in Object.entries(getThreadsLastSeen())) {
     if (time > THRESHOLD) {
       const stacks = captureStackTrace();
       const blockedThread = stacks[thread];

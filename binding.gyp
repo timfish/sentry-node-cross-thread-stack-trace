@@ -1,8 +1,8 @@
 {
   "targets": [
     {
-      "target_name": "cross-thread-stack-trace",
+      "target_name": "stack-trace",
       "sources": [ "module.cc" ]
     }
   ]
-} 
+}
