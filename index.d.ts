@@ -1,5 +1,5 @@
 
-export declare function registerThread(): void;
+export declare function registerThread(name?: string): void;
 
 export type StackFrame = {
     function: string;
@@ -8,8 +8,8 @@ export type StackFrame = {
     colno: number;
 };
 
-export type Trace = {
-    main: StackFrame[];
-} & Record<string, StackFrame[]>;
+export type Trace = Record<string, StackFrame[]>;
 
 export declare function captureStackTrace(excludeWorkers: boolean): Trace;
+
+export declare function getThreadLastSeen(): Record<string, number>;

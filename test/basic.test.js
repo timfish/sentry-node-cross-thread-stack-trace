@@ -12,7 +12,7 @@ describe("Basic", () => {
 
         const stacks = JSON.parse(result.stdout.toString());
 
-        expect(stacks.main).toEqual(expect.arrayContaining([
+        expect(stacks["0"]).toEqual(expect.arrayContaining([
             {
                 function: 'pbkdf2Sync',
                 filename: expect.any(String),
@@ -33,7 +33,7 @@ describe("Basic", () => {
             },
         ]));
 
-        expect(stacks['worker-2']).toEqual(expect.arrayContaining([
+        expect(stacks['2']).toEqual(expect.arrayContaining([
             {
                 function: 'pbkdf2Sync',
                 filename: expect.any(String),
