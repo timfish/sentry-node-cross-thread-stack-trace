@@ -5,19 +5,19 @@
   "types": "lib/index.d.ts",
   "license": "MIT",
   "scripts": {
-    "install": "node scripts/check-build.js",
+    "install": "node scripts/check-build.mjs",
     "lint": "yarn lint:eslint && yarn lint:clang",
     "lint:eslint": "eslint . --format stylish",
-    "lint:clang": "node scripts/clang-format.js",
+    "lint:clang": "node scripts/clang-format.mjs",
     "fix": "yarn fix:eslint && yarn fix:clang",
     "fix:eslint": "eslint . --format stylish --fix",
-    "fix:clang": "node scripts/clang-format.js --fix",
+    "fix:clang": "node scripts/clang-format.mjs --fix",
     "build": "yarn build:lib && yarn build:bindings:configure && yarn build:bindings",
     "build:lib": "tsc",
     "build:bindings:configure": "node-gyp configure",
     "build:bindings:configure:arm64": "node-gyp configure --arch=arm64 --target_arch=arm64",
-    "build:bindings": "node-gyp build && node scripts/copy-target.js",
-    "build:bindings:arm64": "node-gyp build --arch=arm64 && node scripts/copy-target.js",
+    "build:bindings": "node-gyp build && node scripts/copy-target.mjs",
+    "build:bindings:arm64": "node-gyp build --arch=arm64 && node scripts/copy-target.mjs",
     "build:dev": "yarn clean && yarn build:bindings:configure && yarn build",
     "build:tarball": "npm pack",
     "clean": "node-gyp clean && rm -rf lib && rm -rf build",
@@ -45,8 +45,8 @@
     "/module.cc",
     "/binding.gyp",
     "package.json",
-    "/scripts/binaries.js",
-    "/scripts/check-build.js",
-    "/scripts/copy-target.js"
+    "/scripts/binaries.mjs",
+    "/scripts/check-build.mjs",
+    "/scripts/copy-target.mjs"
   ]
 }
