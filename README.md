@@ -18,21 +18,15 @@ Watchdog thread:
 ```ts
 const { captureStackTrace } = require("cross-thread-stack-trace");
 
-const stack = captureStackTrace();
-console.log(stack);
-```
-
-Build the module and run the test:
-
-```
-npm i && npm test
+const stacks = captureStackTrace();
+console.log(stacks);
 ```
 
 Results in:
 
 ```js
 {
-  main: [
+  '0': [
     {
       function: 'from',
       filename: 'node:buffer',
@@ -47,18 +41,18 @@ Results in:
     },
     {
       function: 'longWork',
-      filename: '/Users/tim/Documents/Repositories/cross-thread-stack-trace/test/test.js',
+      filename: '/app/test.js',
       lineno: 20,
       colno: 29
     },
     {
       function: '?',
-      filename: '/Users/tim/Documents/Repositories/cross-thread-stack-trace/test/test.js',
+      filename: '/app/test.js',
       lineno: 24,
       colno: 1
     }
   ],
-  'worker-2': [
+  '2': [
     {
       function: 'from',
       filename: 'node:buffer',
@@ -73,16 +67,56 @@ Results in:
     },
     {
       function: 'longWork',
-      filename: '/Users/tim/Documents/Repositories/cross-thread-stack-trace/test/worker.js',
+      filename: '/app/worker.js',
       lineno: 10,
       colno: 29
     },
     {
       function: '?',
-      filename: '/Users/tim/Documents/Repositories/cross-thread-stack-trace/test/worker.js',
+      filename: '/app/worker.js',
       lineno: 14,
       colno: 1
     }
   ]
 }
+```
+
+## Detecting blocked event loops
+
+In the main or worker threads if you call `registerThread()` regularly, times
+are recorded.
+
+```ts
+const { registerThread } = require("cross-thread-stack-trace");
+
+setInterval(() => {
+  registerThread();
+}, 200);
+```
+
+In the watchdog thread you can call `getThreadLastSeen()` to get how long it's
+been in milliseconds since each thread registered.
+
+If any thread has exceeded a threshold, you can call `captureStackTrace()` to
+get the stack traces for all threads.
+
+```ts
+const { captureStackTrace, getThreadLastSeen } = require(
+  "cross-thread-stack-trace",
+);
+
+const THRESHOLD = 1000; // 1 second
+
+setInterval(() => {
+  for (const [thread, time] in Object.entries(getThreadLastSeen())) {
+    if (time > THRESHOLD) {
+      const stacks = captureStackTrace();
+      const blockedThread = stacks[thread];
+      console.log(
+        `Thread '${thread}' blocked more than ${THRESHOLD}ms`,
+        blockedThread,
+      );
+    }
+  }
+}, 1000);
 ```
