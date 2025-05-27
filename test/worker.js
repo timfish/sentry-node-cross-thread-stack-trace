@@ -1,5 +1,5 @@
 const { longWork } = require('./long-work');
-const { registerThread } = require('..');
+const { registerThread } = require('@sentry-internal/node-native-stacktrace');
 
 registerThread();
 
