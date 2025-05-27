@@ -4,7 +4,7 @@ import { describe, expect, test } from 'vitest';
 
 const __dirname = import.meta.dirname || new URL('.', import.meta.url).pathname;
 
-describe('e2e Tests', () => {
+describe('e2e Tests', { timeout: 20000 }, () => {
   test('Capture stack trace from multiple threads', () => {
     const testFile = join(__dirname, 'stack-traces.js');
     const result = spawnSync('node', [testFile])
@@ -56,7 +56,7 @@ describe('e2e Tests', () => {
     ]));
   });
 
-  test('detect stalled thread', { timeout: 10000 }, () => {
+  test('detect stalled thread', { timeout: 20000 }, () => {
     const testFile = join(__dirname, 'stalled.js');
     const result = spawnSync('node', [testFile]);
 

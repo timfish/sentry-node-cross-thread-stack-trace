@@ -1,4 +1,4 @@
-const child_process = require('child_process');
+import child_process from 'child_process';
 
 const args = ['--Werror', '-i', '--style=file', 'module.cc'];
 const cmd = `./node_modules/.bin/clang-format ${args.join(' ')}`;

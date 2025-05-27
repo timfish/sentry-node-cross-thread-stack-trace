@@ -1,6 +1,6 @@
-const fs = require('fs');
-const child_process = require('child_process');
-const binaries = require('./binaries.js');
+import fs from 'fs';
+import child_process from 'child_process';
+import * as binaries from './binaries.mjs';
 
 function clean(err) {
   return err.toString().trim();
@@ -32,7 +32,7 @@ function recompileFromSource() {
 
 if (fs.existsSync(binaries.target)) {
   try {
-    require(binaries.target);
+    await import(binaries.target);
     console.log('Precompiled binary found, skipping build from source.');
   } catch (e) {
     console.log('Precompiled binary found but failed loading');

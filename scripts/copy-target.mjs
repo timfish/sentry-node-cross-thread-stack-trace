@@ -1,6 +1,9 @@
-const fs = require('fs');
-const path = require('path');
-const binaries = require('./binaries.js');
+import fs from 'fs';
+import path from 'path';
+import { fileURLToPath } from 'url';
+import * as binaries from './binaries.mjs';
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 const build = path.resolve(__dirname, '..', 'lib');
 if (!fs.existsSync(build)) {
