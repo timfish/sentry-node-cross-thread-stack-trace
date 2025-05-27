@@ -41,5 +41,5 @@ export function installTarballAsDependency(root) {
   writeFileSync(join(root, 'package.json'), modified);
 
   console.log('Installing dependencies...');
-  execSync('yarn install', { cwd: root });
+  execSync('yarn install', { cwd: root, stdio: 'inherit' });
 }
