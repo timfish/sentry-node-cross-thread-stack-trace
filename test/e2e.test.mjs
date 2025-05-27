@@ -1,10 +1,15 @@
 import { spawnSync } from 'node:child_process';
 import { join } from 'node:path';
-import { describe, expect, test } from 'vitest';
+import { beforeAll, describe, expect, test } from 'vitest';
+import { installTarballAsDependency } from './prepare.mjs';
 
 const __dirname = import.meta.dirname || new URL('.', import.meta.url).pathname;
 
 describe('e2e Tests', { timeout: 20000 }, () => {
+  beforeAll(() => {
+    installTarballAsDependency(__dirname);
+  });
+
   test('Capture stack trace from multiple threads', () => {
     const testFile = join(__dirname, 'stack-traces.js');
     const result = spawnSync('node', [testFile])
