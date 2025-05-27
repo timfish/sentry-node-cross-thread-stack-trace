@@ -8,7 +8,7 @@ const __dirname = import.meta.dirname || new URL('.', import.meta.url).pathname;
 describe('e2e Tests', { timeout: 20000 }, () => {
   beforeAll(() => {
     installTarballAsDependency(__dirname);
-  });
+  }, 30000);
 
   test('Capture stack trace from multiple threads', () => {
     const testFile = join(__dirname, 'stack-traces.js');
