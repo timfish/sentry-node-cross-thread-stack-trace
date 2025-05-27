@@ -5,12 +5,12 @@ import { installTarballAsDependency } from './prepare.mjs';
 
 const __dirname = import.meta.dirname || new URL('.', import.meta.url).pathname;
 
-describe('e2e Tests', { timeout: 20000 }, () => {
+describe('e2e Tests', () => {
   beforeAll(() => {
     installTarballAsDependency(__dirname);
-  }, 30000);
+  }, process.platform === 'win32' ? 60000 : 30000);
 
-  test('Capture stack trace from multiple threads', () => {
+  test('Capture stack trace from multiple threads', { timeout: 20000 }, () => {
     const testFile = join(__dirname, 'stack-traces.js');
     const result = spawnSync('node', [testFile])
 
