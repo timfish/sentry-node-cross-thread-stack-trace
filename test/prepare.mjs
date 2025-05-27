@@ -9,7 +9,7 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 const require = createRequire(import.meta.url);
 const env = {...process.env, NODE_OPTIONS: '--no-deprecation'};
 
-export function installTarballAsDependency(root) {
+function installTarballAsDependency(root) {
   const pkgJson = require('../package.json');
   const normalizedName = pkgJson.name.replace('@', '').replace('/', '-');
 
@@ -41,5 +41,7 @@ export function installTarballAsDependency(root) {
   writeFileSync(join(root, 'package.json'), modified);
 
   console.log('Installing dependencies...');
-  execSync('yarn install', { cwd: root });
+  execSync('yarn install', { cwd: root, stdio: 'inherit' });
 }
+
+installTarballAsDependency(__dirname);
