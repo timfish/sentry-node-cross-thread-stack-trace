@@ -2,6 +2,7 @@
   "name": "node-cpu-profiler-test",
   "license": "MIT",
   "dependencies": {
-    "@sentry-internal/node-native-stacktrace": "{{path}}"
+    "@sentry-internal/node-native-stacktrace": "{{path}}",
+    "segfault-handler": "1.3.0"
   }
 }
